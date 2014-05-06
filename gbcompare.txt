@@ -442,12 +442,12 @@ Index: client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/Item
 +		if(selectedItemModel != null) {
 +
 +			// DN 2013-12-02: Get the gradebookPlacementId from cookie
-+			String gradebookPlacementId = Cookies.getCookie("gradebookPlacementId");
++			// String gradebookPlacementId = Cookies.getCookie("gradebookPlacementId");
 +
 +			// DN 2013-12-02: Updated the url irubric view: Add the gradebook placement id
 +			// instead the "/sakaigradebooktool"
 +			//string url IrubricLink
-+			final String urlIrubric = "../" + gradebookPlacementId + "/iRubricLink.jsp?p=a&gradebookItemId="+ selectedItemModel.getItemId() +
++			final String urlIrubric = "/sakai-gradebook-tool/iRubricLink.jsp?p=a&gradebookItemId="+ selectedItemModel.getItemId() +
 +									"&siteId=" + selectedItemModel.getSiteId() + "&gradebookUid=" + selectedItemModel.getSiteId();
 +			
 +			//open windown irubric
@@ -725,12 +725,12 @@ Index: client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/Item
 +					final Item itemModel = (Item)ge.getModel();
 +					
 +					// DN 2013-12-02: Get the gradebookPlacementId from cookie
-+					String gradebookPlacementId = Cookies.getCookie("gradebookPlacementId");
++					// String gradebookPlacementId = Cookies.getCookie("gradebookPlacementId");
 +
 +					// DN 2013-12-02: Updated the url irubric view: Add the gradebook placement id
 +					// instead the "/sakaigradebooktool"
 +					//string url IrubricLink
-+					String urlIrubric = "../" + gradebookPlacementId + "/iRubricLink.jsp?gradebookItemId="+ itemModel.getItemId() +
++					String urlIrubric = "/sakai-gradebook-tool/iRubricLink.jsp?gradebookItemId="+ itemModel.getItemId() +
 +					"&siteId=" + itemModel.getSiteId() + "&gradebookUid=" + itemModel.getSiteId();
 +	 
 +					//click image gradeAll irubric
@@ -1094,7 +1094,7 @@ Index: server/src/java/org/sakaiproject/gradebook/gwt/server/WebAppToolServlet.j
  		};
  
 +		// DN 2013-12-02: Add the placement id to the cookie
-+		addPlacementToCookie(response);
++		//addPlacementToCookie(response);
 +
  		if (request.getPathInfo() == null
  				&& getInitParameter(FIRST_PAGE) != null
