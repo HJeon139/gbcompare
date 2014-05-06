@@ -1,6 +1,180 @@
+Index: assignment-api/api/src/java/org/sakaiproject/assignment/api/AssignmentRubService.java
+===================================================================
+--- assignment-api/api/src/java/org/sakaiproject/assignment/api/AssignmentRubService.java	(revision 0)
++++ assignment-api/api/src/java/org/sakaiproject/assignment/api/AssignmentRubService.java	(working copy)
+@@ -0,0 +1,11 @@
++package org.sakaiproject.assignment.api;
++
++//DN 2012-11-13: create assignment rubric service
++//Purpose: re-use function from gradebook
++public interface AssignmentRubService {
++	
++	public Long getGradableObjectId(String name, String gradebookUid);
++	
++	public boolean isShowiRubricLink();
++	public Long getGradableObjectIdByExternalId(String name , String gradebookUid);
++}
+\ No newline at end of file
+Index: assignment-impl/impl/pom.xml
+===================================================================
+--- assignment-impl/impl/pom.xml	(revision 309148)
++++ assignment-impl/impl/pom.xml	(working copy)
+@@ -20,6 +20,7 @@
+     <packaging>jar</packaging>
+ 
+     <dependencies>
++
+         <dependency>
+             <groupId>org.sakaiproject.kernel</groupId>
+             <artifactId>sakai-kernel-api</artifactId>
+@@ -110,6 +111,27 @@
+             <artifactId>spring</artifactId>
+             <version>2.5.6.SEC01</version>
+         </dependency>
++        
++        <dependency>
++            <groupId>org.sakaiproject</groupId>
++            <artifactId>sakai-gradebook-irubric-impl</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.sakaiproject</groupId>
++            <artifactId>sakai-gradebook-irubric-api</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++         <!-- DN 2013-02-20: add mapping for irubric -->
++        <dependency>
++            <groupId>org.sakaiproject</groupId>
++            <artifactId>sakai-gradebook-irubric</artifactId>
++            <version>${project.version}</version>
++            <scope>provided</scope>
++        </dependency>
++
+     </dependencies>
+ 
+     <build>
+Index: assignment-impl/impl/src/java/org/sakaiproject/assignment/impl/AssignmentRubServiceImpl.java
+===================================================================
+--- assignment-impl/impl/src/java/org/sakaiproject/assignment/impl/AssignmentRubServiceImpl.java	(revision 0)
++++ assignment-impl/impl/src/java/org/sakaiproject/assignment/impl/AssignmentRubServiceImpl.java	(working copy)
+@@ -0,0 +1,63 @@
++
++package org.sakaiproject.assignment.impl;
++
++import org.apache.commons.logging.Log;
++import org.apache.commons.logging.LogFactory;
++import org.springframework.orm.hibernate3.support.HibernateDaoSupport;
++import org.sakaiproject.tool.gradebook.iRubric.GradableObjectRubric;
++import com.reazon.tool.irubric.IRubricManager;
++import org.sakaiproject.assignment.api.AssignmentRubService;
++
++//DN 2012-11-13: create assignment rubric service
++//Purpose: re-use function from gradebook
++public class AssignmentRubServiceImpl extends HibernateDaoSupport implements AssignmentRubService {
++	
++	private final static Log Log = LogFactory.getLog(AssignmentRubServiceImpl.class);
++	
++	/**
++	 * Init
++	 */
++	public void init()
++	{
++		Log.info("init()");
++	}
++	   
++	/**
++	* Destroy
++	*/
++	public void destroy()
++	{
++		Log.info("destroy()");
++	}
++	
++	//get funtion from gradebook
++	private IRubricManager rubricManager;
++	public void setRubricManager(IRubricManager rubricManager) {
++		this.rubricManager = rubricManager;
++	}
++	
++	public IRubricManager getRubricManager() {
++		return rubricManager;
++	}
++	
++	//DN 2012-11-13: get gradableobject id by name and gradebookUId
++	public Long getGradableObjectId(final String name, final String gradebookUid) {
++		
++		Long gradeObjectId = rubricManager.getGradableObjectId(name, gradebookUid);
++		return gradeObjectId;
++
++	}
++
++	//DN 2012-11-13: get gradableobject id by externalid and gradebookUId
++	public Long getGradableObjectIdByExternalId(final String name, final String gradebookUid) {
++
++		Long gradeObjectId = rubricManager.getGradableObjectIdByExternalId(name, gradebookUid);
++		return gradeObjectId;
++		
++	}	
++
++	//DN 2013-04-17: show irubric link (rubric enable) 
++	public boolean isShowiRubricLink() {
++	    return rubricManager.isShowiRubricLink();
++	}	
++}
+Index: assignment-impl/pack/pom.xml
+===================================================================
+--- assignment-impl/pack/pom.xml	(revision 309148)
++++ assignment-impl/pack/pom.xml	(working copy)
+@@ -38,5 +38,11 @@
+                 </exclusion>
+             </exclusions>
+         </dependency>
++	
++	<dependency>
++            <groupId>org.sakaiproject.edu-services.gradebook</groupId>
++            <artifactId>gradebook-service-api</artifactId>
++        </dependency>
++
+     </dependencies>
+ </project>
+Index: assignment-impl/pack/src/webapp/WEB-INF/components.xml
+===================================================================
+--- assignment-impl/pack/src/webapp/WEB-INF/components.xml	(revision 309148)
++++ assignment-impl/pack/src/webapp/WEB-INF/components.xml	(working copy)
+@@ -71,10 +71,28 @@
+ 				<value>org/sakaiproject/assignment/api/model/AssignmentSupplementItemAttachment.hbm.xml</value>
+ 				<value>org/sakaiproject/assignment/api/model/AssignmentSupplementItem.hbm.xml</value>
+ 				<value>org/sakaiproject/assignment/api/model/AssignmentAllPurposeItemAccess.hbm.xml</value>
++				
+ 			</list>
+ 		</property>
+ 	</bean>
++
+ 	
++		
++		
++		    
++		
++	 					
++	
++	
++	 <bean id="org.sakaiproject.assignment.api.AssignmentRubService"
++	    	class="org.sakaiproject.assignment.impl.AssignmentRubServiceImpl"
++	    	singleton="true" init-method="init" destroy-method="destroy">
++	    	<property name="sessionFactory">
++	    		<ref bean="org.sakaiproject.springframework.orm.hibernate.GlobalSessionFactory" />
++	    	</property>
++	    	<property name="rubricManager" ref="com.reazon.tool.irubric.IRubricManager"/>
++	  </bean>
++
+ 	<bean id="org.sakaiproject.assignment.api.model.AssignmentSupplementItemService"
+         class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+         <property name="transactionManager">
 Index: assignment-tool/tool/pom.xml
 ===================================================================
---- assignment-tool/tool/pom.xml	(revision 122888)
+--- assignment-tool/tool/pom.xml	(revision 309148)
 +++ assignment-tool/tool/pom.xml	(working copy)
 @@ -94,6 +94,13 @@
              <groupId>javax.servlet</groupId>
@@ -16,184 +190,9 @@ Index: assignment-tool/tool/pom.xml
      </dependencies>
  
      <build>
-Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_submission.vm
-===================================================================
---- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_submission.vm	(revision 122888)
-+++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_submission.vm	(working copy)
-@@ -253,6 +253,16 @@
- 									#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
- 										($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())
- 									#end
-+									
-+									<!--DN 2012-09-21: show rubric link, use for grade rubric -->
-+									<!--if have define gradebookitem(this mean have included gradebook item from gradebook) -->
-+									#if($!isShowiRubricLink && $!gradebookItem)
-+			
-+										<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
-+										#parse ("/vm/assignment/chef_assignments_irubric.vm")								
-+	
-+								        #end
-+
- 								</strong>
- 							</td>
- 						</tr>
-@@ -266,6 +276,16 @@
- 								#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
- 									($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())
- 								#end
-+							
-+								<!--DN 2012-09-21: show rubric link, use for grade rubric -->
-+								<!--if have define gradebookitem(this mean have included gradebook item from gradebook) -->
-+								#if($!isShowiRubricLink && $!gradebookItem)
-+		
-+									<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
-+									#parse ("/vm/assignment/chef_assignments_irubric.vm")								
-+
-+							        #end
-+
- 							</td>
- 						</tr>
- 					#end
-Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_preview_submission.vm
-===================================================================
---- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_preview_submission.vm	(revision 122888)
-+++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_preview_submission.vm	(working copy)
-@@ -1,6 +1,12 @@
- <!-- $Id$ -->
- <!-- start: chef_assignments_student_preview_submission.vm -->
- #parse("/vm/assignment/assignment_macros.vm")
-+
-+<!--DN 2012-09-22:if have define gradebookitem(this mean is have include gradebook item from gradebook) then add js rubric -->
-+#if($!isShowiRubricLink && $!gradebookItem)
-+<script type="text/javascript" src="/library/js/jquery.js"></script>
-+#end
-+
- <div class="portletBody">
- 
- 	<h3>
-@@ -70,6 +76,15 @@
- 					#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
- 						($tlang.getString("stupresub.max") $assignment.getContent().getMaxGradePointDisplay())
- 					#end
-+					
-+					<!--DN 2012-09-26:view grade iRubric -->
-+					#if($!isShowiRubricLink && $!gradebookItem)
-+						
-+						<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
-+						#parse ("/vm/assignment/chef_assignments_irubric.vm")
-+						
-+			        #end
-+
- 				</td>
- 			</tr>
- 		#end
-Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_grading_submission.vm
-===================================================================
---- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_grading_submission.vm	(revision 122888)
-+++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_grading_submission.vm	(working copy)
-@@ -16,6 +16,13 @@
- </script>
- <script type="text/javascript" src="/library/js/jquery.js"></script>
- <script type="text/javascript"  src="/sakai-assignment-tool/js/assignments.js"></script>
-+
-+<!--DN 2012-09-22:if have define gradebookitem(this mean is have include gradebook item from gradebook) then add js rubric -->
-+#if($!isShowiRubricLink &&  $!gradebookItem)
-+<script type="text/javascript" language="JavaScript" src="/sakai-gradebook-tool/js/irubric/helper.js"></script>
-+<script type="text/javascript"  src="/sakai-assignment-tool/js/gradeirubric.js"></script>
-+#end
-+
- <script type="text/javascript">
-     $(document).ready(function(){
-         setupToggleAreas('toggleAnchor', 'toggledContent', false, 'fast');
-@@ -434,6 +441,16 @@
- 									<p class="shorttext">
- 										<label for="grade">$tlang.getString("gen.gra2")</label>
- 										<input type="text" name="$name_grade" size="5" maxlength="11" value="$!value_grade" id="grade" onkeypress="return handleEnterKeyPress(event);" /> <span class="instruction">($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())</span>
-+										
-+										<!--DN 2012-09-21: show rubric link, use for grade rubric -->
-+										<!--if have gradebookitem(this mean have included gradebook item from gradebook) -->
-+										#if($!isShowiRubricLink && $!gradebookItem)
-+										
-+									        <!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
-+											#parse ("/vm/assignment/chef_assignments_irubric.vm")
-+											
-+								        #end
-+										
- 									</p>	
- 								#elseif ($gradeType == 4)
- 									<p class="shorttext">
-Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_grade.vm
-===================================================================
---- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_grade.vm	(revision 122888)
-+++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_grade.vm	(working copy)
-@@ -94,6 +94,15 @@
- 									#end
- 									#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
- 										($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())
-+										
-+										<!--DN 2012-09-26:view grade iRubric -->
-+										#if($!isShowiRubricLink && $!gradebookItem)
-+											
-+											<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
-+											#parse ("/vm/assignment/chef_assignments_irubric.vm")
-+											
-+								        #end
-+								        
- 									#end
- 								</strong>
- 							</td>
-@@ -107,6 +116,15 @@
- 								$gradeScale
- 								#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
- 									($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())
-+									
-+									<!--DN 2012-09-26:view grade iRubric -->
-+									#if($!isShowiRubricLink && $!gradebookItem)
-+										
-+										<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
-+										#parse ("/vm/assignment/chef_assignments_irubric.vm")
-+										
-+							        #end
-+							        
- 								#end
- 							</td>
- 						</tr>
-Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_preview_grading_submission.vm
-===================================================================
---- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_preview_grading_submission.vm	(revision 122888)
-+++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_preview_grading_submission.vm	(working copy)
-@@ -2,6 +2,12 @@
- <!-- start:  chef_assignments_instructor_preview_grading_submission.vm -->
- ##<!-- $Header: /cvs/sakai2/legacy/tools/src/webapp/vm/assignment/chef_assignments_instructor_preview_grading_submission.vm,v 1.5 2005/05/16 02:26:05 zqian.umich.edu Exp $ -->
- #parse("/vm/assignment/assignment_macros.vm")
-+
-+<!--DN 2012-09-22:if have define gradebookitem(this mean is have include gradebook item from gradebook) then add js rubric -->
-+#if($!isShowiRubricLink && $!gradebookItem )
-+<script type="text/javascript" src="/library/js/jquery.js"></script>
-+#end
-+
- <div class="portletBody" xmlns:wairole="http://www.w3.org/2005/01/wai-rdf/GUIRoleTaxonomy#"  xmlns:aaa="http://www.w3.org/2005/07/aaa">
- 	<ul class="navIntraTool actionToolBar" role="menu">
- 		#set($prevAction=false)
-@@ -222,6 +228,15 @@
- 					<span class="highlight"> $tlang.getString("gen.nograd")</span>	
- 				#elseif ($!grade && $grade.length()>0)
- 					$grade
-+					
-+					<!--DN 2012-09-26:view grade iRubric -->
-+					#if($!isShowiRubricLink && $!gradebookItem)
-+						
-+						<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
-+						#parse ("/vm/assignment/chef_assignments_irubric.vm")
-+						
-+			        #end
-+			        
- 				#else
- 					$tlang.getString("ungra")
- 				#end
 Index: assignment-tool/tool/src/java/org/sakaiproject/assignment/tool/AssignmentAction.java
 ===================================================================
---- assignment-tool/tool/src/java/org/sakaiproject/assignment/tool/AssignmentAction.java	(revision 122888)
+--- assignment-tool/tool/src/java/org/sakaiproject/assignment/tool/AssignmentAction.java	(revision 309148)
 +++ assignment-tool/tool/src/java/org/sakaiproject/assignment/tool/AssignmentAction.java	(working copy)
 @@ -1249,6 +1249,9 @@
                  submitter = user;
@@ -277,7 +276,7 @@ Index: assignment-tool/tool/src/java/org/sakaiproject/assignment/tool/Assignment
  
  		User user = (User) state.getAttribute(STATE_USER);
  		context.put("user", user);
-@@ -13239,4 +13275,95 @@
+@@ -13243,4 +13279,117 @@
  		String lOptions = ServerConfigurationService.getString("assignment.letterGradeOptions", "A+,A,A-,B+,B,B-,C+,C,C-,D+,D,D-,E,F");
  		context.put("letterGradeOptions", StringUtil.split(lOptions, ","));
  	}
@@ -297,6 +296,26 @@ Index: assignment-tool/tool/src/java/org/sakaiproject/assignment/tool/Assignment
 +		}
 +		//set var gradebookUId in file vm
 +		context.put("gradebookUId",gradebookUId);
++		
++		String gradebookPlacementId=null;
++		
++		// retrieve the gradebook tool placement for constructing the url
++		try {
++			Site site = SiteService.getSite(gradebookUId);
++			ToolConfiguration tool = site.getToolForCommonId("sakai.gradebook.tool");
++	        if (tool != null) {
++	        	gradebookPlacementId = tool.getId();
++	        }
++		} catch (IdUnusedException e) {
++			M_log.warn("No gradebook tool found in site associated with iRubric. Site id: " + gradebookUId);
++		}
++		
++		if (gradebookPlacementId != null) {
++			context.put("iRubricUrlPrefix", "/portal/tool/" + gradebookPlacementId);
++		} else {
++			context.put("iRubricUrlPrefix", "/sakai-gradebook-tool");
++		}
++		
 +		
 +		//get gradeObjectId				
 +		//DN 2012-11-13: change component
@@ -332,6 +351,8 @@ Index: assignment-tool/tool/src/java/org/sakaiproject/assignment/tool/Assignment
 +		boolean isShowiRubricLink = isShowiRubricLink();
 +		//DN 2013-04-17: if can show iRubric link
 +		if(isShowiRubricLink) {
++			
++			
 +			String associateGradebookAssignment = StringUtils.trimToNull(a.getProperties().getProperty(AssignmentService.PROP_ASSIGNMENT_ASSOCIATE_GRADEBOOK_ASSIGNMENT));
 +			
 +			/*Grade types
@@ -373,194 +394,57 @@ Index: assignment-tool/tool/src/java/org/sakaiproject/assignment/tool/Assignment
 +		return asmRubService.isShowiRubricLink();
 +	}
  }	
-Index: assignment-impl/pack/pom.xml
+Index: assignment-tool/tool/src/webapp/js/gradeirubric.js
 ===================================================================
---- assignment-impl/pack/pom.xml	(revision 122888)
-+++ assignment-impl/pack/pom.xml	(working copy)
-@@ -38,5 +38,11 @@
-                 </exclusion>
-             </exclusions>
-         </dependency>
+--- assignment-tool/tool/src/webapp/js/gradeirubric.js	(revision 0)
++++ assignment-tool/tool/src/webapp/js/gradeirubric.js	(working copy)
+@@ -0,0 +1,31 @@
++//DN 2012-09-24: refresh grade
++function refreshGrade(gradebookUId, studentId, gradeObjectId) {
++	var urlPrefix = $('#iRubricUrlPrefix').val();
++	var urlPage = urlPrefix + "/iRubricLink.jsp?p=gg&gradebookUid="+ gradebookUId +
++		"&siteId="+ gradebookUId +"&rosterStudentId="+ studentId +"&gradebookItemId="+gradeObjectId + 
++		"&fieldToUpdate=grade";
 +	
-+	<dependency>
-+            <groupId>org.sakaiproject.edu-services.gradebook</groupId>
-+            <artifactId>gradebook-service-api</artifactId>
-+        </dependency>
-+
-     </dependencies>
- </project>
-Index: assignment-impl/pack/src/webapp/WEB-INF/components.xml
-===================================================================
---- assignment-impl/pack/src/webapp/WEB-INF/components.xml	(revision 122888)
-+++ assignment-impl/pack/src/webapp/WEB-INF/components.xml	(working copy)
-@@ -71,10 +71,28 @@
- 				<value>org/sakaiproject/assignment/api/model/AssignmentSupplementItemAttachment.hbm.xml</value>
- 				<value>org/sakaiproject/assignment/api/model/AssignmentSupplementItem.hbm.xml</value>
- 				<value>org/sakaiproject/assignment/api/model/AssignmentAllPurposeItemAccess.hbm.xml</value>
-+				
- 			</list>
- 		</property>
- 	</bean>
-+
-+	
-+		
-+		
-+		    
-+		
-+	 					
-+	
- 	
-+	 <bean id="org.sakaiproject.assignment.api.AssignmentRubService"
-+	    	class="org.sakaiproject.assignment.impl.AssignmentRubServiceImpl"
-+	    	singleton="true" init-method="init" destroy-method="destroy">
-+	    	<property name="sessionFactory">
-+	    		<ref bean="org.sakaiproject.springframework.orm.hibernate.GlobalSessionFactory" />
-+	    	</property>
-+	    	<property name="rubricManager" ref="com.reazon.tool.irubric.IRubricManager"/>
-+	  </bean>
-+
- 	<bean id="org.sakaiproject.assignment.api.model.AssignmentSupplementItemService"
-         class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
-         <property name="transactionManager">
-Index: assignment-impl/impl/pom.xml
-===================================================================
---- assignment-impl/impl/pom.xml	(revision 122888)
-+++ assignment-impl/impl/pom.xml	(working copy)
-@@ -20,6 +20,7 @@
-     <packaging>jar</packaging>
- 
-     <dependencies>
-+
-         <dependency>
-             <groupId>org.sakaiproject.kernel</groupId>
-             <artifactId>sakai-kernel-api</artifactId>
-@@ -110,6 +111,27 @@
-             <artifactId>spring</artifactId>
-             <version>2.5.6.SEC01</version>
-         </dependency>
-+        
-+        <dependency>
-+            <groupId>org.sakaiproject</groupId>
-+            <artifactId>sakai-gradebook-irubric-impl</artifactId>
-+            <version>${project.version}</version>
-+        </dependency>
-+
-+        <dependency>
-+            <groupId>org.sakaiproject</groupId>
-+            <artifactId>sakai-gradebook-irubric-api</artifactId>
-+            <version>${project.version}</version>
-+        </dependency>
-+
-+         <!-- DN 2013-02-20: add mapping for irubric -->
-+        <dependency>
-+            <groupId>org.sakaiproject</groupId>
-+            <artifactId>sakai-gradebook-irubric</artifactId>
-+            <version>${project.version}</version>
-+            <scope>provided</scope>
-+        </dependency>
-+
-     </dependencies>
- 
-     <build>
-Index: assignment-api/api/src/java/org/sakaiproject/assignment/api/AssignmentRubService.java
-===================================================================
---- assignment-api/api/src/java/org/sakaiproject/assignment/api/AssignmentRubService.java	(revision 760)
-+++ assignment-api/api/src/java/org/sakaiproject/assignment/api/AssignmentRubService.java	(revision 761)
-@@ -0,0 +1,11 @@
-+package org.sakaiproject.assignment.api;
-+
-+//DN 2012-11-13: create assignment rubric service
-+//Purpose: re-use function from gradebook
-+public interface AssignmentRubService {
-+	
-+	public Long getGradableObjectId(String name, String gradebookUid);
-+	
-+	public boolean isShowiRubricLink();
-+	public Long getGradableObjectIdByExternalId(String name , String gradebookUid);
++	//function in file helper.js
++	createRubricFrame("getGradeFrame", urlPage);
++	$("#irubric-grading-refresh").hide();
 +}
-\ No newline at end of file
-Index: assignment-impl/impl/src/java/org/sakaiproject/assignment/impl/AssignmentRubServiceImpl.java
-===================================================================
---- assignment-impl/impl/src/java/org/sakaiproject/assignment/impl/AssignmentRubServiceImpl.java	(revision 760)
-+++ assignment-impl/impl/src/java/org/sakaiproject/assignment/impl/AssignmentRubServiceImpl.java	(revision 761)
-@@ -0,0 +1,63 @@
 +
-+package org.sakaiproject.assignment.impl;
-+
-+import org.apache.commons.logging.Log;
-+import org.apache.commons.logging.LogFactory;
-+import org.springframework.orm.hibernate3.support.HibernateDaoSupport;
-+import org.sakaiproject.tool.gradebook.iRubric.GradableObjectRubric;
-+import com.reazon.tool.irubric.IRubricManager;
-+import org.sakaiproject.assignment.api.AssignmentRubService;
-+
-+//DN 2012-11-13: create assignment rubric service
-+//Purpose: re-use function from gradebook
-+public class AssignmentRubServiceImpl extends HibernateDaoSupport implements AssignmentRubService {
-+	
-+	private final static Log Log = LogFactory.getLog(AssignmentRubServiceImpl.class);
-+	
-+	/**
-+	 * Init
-+	 */
-+	public void init()
-+	{
-+		Log.info("init()");
++//DN 2012-09-24: override updateScoreTextbox of helper.js(helper.js in gradebook1)
++//because asm1 needs score with 1 decimal 
++// update score textbox
++function updateScoreTextbox(fieldToUpdate, newScore) {
++	var inp = document.getElementById(fieldToUpdate);
++	if(newScore != '' && newScore > 0) {
++		newScore = Math.round(newScore*10)/10;
 +	}
-+	   
-+	/**
-+	* Destroy
-+	*/
-+	public void destroy()
-+	{
-+		Log.info("destroy()");
-+	}
++	inp.value = newScore;
++	// remove hidden frame
++	var getGradeFrame = document.getElementById("getGradeFrame");
++	discardElement(getGradeFrame);
++}
++
++//DN 2012-09-24: grade student
++function gradeStudent(gradebookUId, studentId, gradeObjectId) {
 +	
-+	//get funtion from gradebook
-+	private IRubricManager rubricManager;
-+	public void setRubricManager(IRubricManager rubricManager) {
-+		this.rubricManager = rubricManager;
-+	}
-+	
-+	public IRubricManager getRubricManager() {
-+		return rubricManager;
-+	}
-+	
-+	//DN 2012-11-13: get gradableobject id by name and gradebookUId
-+	public Long getGradableObjectId(final String name, final String gradebookUid) {
-+		
-+		Long gradeObjectId = rubricManager.getGradableObjectId(name, gradebookUid);
-+		return gradeObjectId;
-+
-+	}
-+
-+	//DN 2012-11-13: get gradableobject id by externalid and gradebookUId
-+	public Long getGradableObjectIdByExternalId(final String name, final String gradebookUid) {
-+
-+		Long gradeObjectId = rubricManager.getGradableObjectIdByExternalId(name, gradebookUid);
-+		return gradeObjectId;
-+		
-+	}	
-+
-+	//DN 2013-04-17: show irubric link (rubric enable) 
-+	public boolean isShowiRubricLink() {
-+	    return rubricManager.isShowiRubricLink();
-+	}	
++	openWindowiRubric(gradebookUId, studentId, gradeObjectId,"g");
 +}
 Index: assignment-tool/tool/src/webapp/js/irubric.js
 ===================================================================
 --- assignment-tool/tool/src/webapp/js/irubric.js	(revision 0)
-+++ assignment-tool/tool/src/webapp/js/irubric.js	(revision 0)
-@@ -0,0 +1,51 @@
++++ assignment-tool/tool/src/webapp/js/irubric.js	(working copy)
+@@ -0,0 +1,52 @@
 +//DN 2012-09-24: create iRubric link
 +function getLinkiRubric() {
 +	var gradebookUId = $('#gradebookUId').val();
 +	var studentId = $('#studentUId').val();
 +	var gradeObjectId = $('#gradebookItem').val();
 +	var purpose =  $('#Purpose').val();
++	var urlPrefix = $('#iRubricUrlPrefix').val();
 +	
 +	if(gradebookUId != null && gradeObjectId != null){
-+		$.getJSON("/sakai-gradebook-tool/iRubricLink.jsp?p=ra&tool=asnn2&gradebookUid="+
++		$.getJSON(urlPrefix + "/iRubricLink.jsp?p=ra&tool=asnn2&gradebookUid="+
 +				gradebookUId+"&siteId="+ gradebookUId+"&gradebookItemId="+gradeObjectId,
 +	
 +			function(data){
@@ -589,8 +473,8 @@ Index: assignment-tool/tool/src/webapp/js/irubric.js
 +}
 +//DN 2012-09-24: open window irubric
 +function openWindowiRubric(gradebookUId, studentId, gradeObjectId, purpose) {
-+	
-+	var urlPage = "/sakai-gradebook-tool/iRubricLink.jsp?p="+ purpose + "&gradebookUid=" +
++	var urlPrefix = $('#iRubricUrlPrefix').val();
++	var urlPage = urlPrefix + "/iRubricLink.jsp?p="+ purpose + "&gradebookUid=" +
 +				gradebookUId+"&siteId="+ gradebookUId +"&rosterStudentId="+ studentId +
 +				"&gradebookItemId="+ gradeObjectId;
 +	
@@ -603,48 +487,79 @@ Index: assignment-tool/tool/src/webapp/js/irubric.js
 +	
 +	openWindowiRubric(gradebookUId, studentId, gradeObjectId,"v");
 +}
-
-Index: assignment-tool/tool/src/webapp/js/gradeirubric.js
+Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_grading_submission.vm
 ===================================================================
---- assignment-tool/tool/src/webapp/js/gradeirubric.js	(revision 0)
-+++ assignment-tool/tool/src/webapp/js/gradeirubric.js	(revision 0)
-@@ -0,0 +1,31 @@
-+//DN 2012-09-24: refresh grade
-+function refreshGrade(gradebookUId, studentId, gradeObjectId) {
-+	
-+	var urlPage = "/sakai-gradebook-tool/iRubricLink.jsp?p=gg&gradebookUid="+ gradebookUId +
-+		"&siteId="+ gradebookUId +"&rosterStudentId="+ studentId +"&gradebookItemId="+gradeObjectId + 
-+		"&fieldToUpdate=grade";
-+	
-+	//function in file helper.js
-+	createRubricFrame("getGradeFrame", urlPage);
-+	$("#irubric-grading-refresh").hide();
-+}
+--- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_grading_submission.vm	(revision 309148)
++++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_grading_submission.vm	(working copy)
+@@ -16,6 +16,13 @@
+ </script>
+ <script type="text/javascript" src="/library/js/jquery.js"></script>
+ <script type="text/javascript"  src="/sakai-assignment-tool/js/assignments.js"></script>
 +
-+//DN 2012-09-24: override updateScoreTextbox of helper.js(helper.js in gradebook1)
-+//because asm1 needs score with 1 decimal 
-+// update score textbox
-+function updateScoreTextbox(fieldToUpdate, newScore) {
-+	var inp = document.getElementById(fieldToUpdate);
-+	if(newScore != '' && newScore > 0) {
-+		newScore = Math.round(newScore*10)/10;
-+	}
-+	inp.value = newScore;
-+	// remove hidden frame
-+	var getGradeFrame = document.getElementById("getGradeFrame");
-+	discardElement(getGradeFrame);
-+}
++<!--DN 2012-09-22:if have define gradebookitem(this mean is have include gradebook item from gradebook) then add js rubric -->
++#if($!isShowiRubricLink &&  $!gradebookItem)
++<script type="text/javascript" language="JavaScript" src="/sakai-gradebook-tool/js/irubric/helper.js"></script>
++<script type="text/javascript"  src="/sakai-assignment-tool/js/gradeirubric.js"></script>
++#end
 +
-+//DN 2012-09-24: grade student
-+function gradeStudent(gradebookUId, studentId, gradeObjectId) {
-+	
-+	openWindowiRubric(gradebookUId, studentId, gradeObjectId,"g");
-+}
+ <script type="text/javascript">
+     $(document).ready(function(){
+         setupToggleAreas('toggleAnchor', 'toggledContent', false, 'fast');
+@@ -434,6 +441,16 @@
+ 									<p class="shorttext">
+ 										<label for="grade">$tlang.getString("gen.gra2")</label>
+ 										<input type="text" name="$name_grade" size="5" maxlength="11" value="$!value_grade" id="grade" onkeypress="return handleEnterKeyPress(event);" /> <span class="instruction">($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())</span>
++										
++										<!--DN 2012-09-21: show rubric link, use for grade rubric -->
++										<!--if have gradebookitem(this mean have included gradebook item from gradebook) -->
++										#if($!isShowiRubricLink && $!gradebookItem)
++										
++									        <!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
++											#parse ("/vm/assignment/chef_assignments_irubric.vm")
++											
++								        #end
++										
+ 									</p>	
+ 								#elseif ($gradeType == 4)
+ 									<p class="shorttext">
+Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_preview_grading_submission.vm
+===================================================================
+--- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_preview_grading_submission.vm	(revision 309148)
++++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_instructor_preview_grading_submission.vm	(working copy)
+@@ -2,6 +2,12 @@
+ <!-- start:  chef_assignments_instructor_preview_grading_submission.vm -->
+ ##<!-- $Header: /cvs/sakai2/legacy/tools/src/webapp/vm/assignment/chef_assignments_instructor_preview_grading_submission.vm,v 1.5 2005/05/16 02:26:05 zqian.umich.edu Exp $ -->
+ #parse("/vm/assignment/assignment_macros.vm")
++
++<!--DN 2012-09-22:if have define gradebookitem(this mean is have include gradebook item from gradebook) then add js rubric -->
++#if($!isShowiRubricLink && $!gradebookItem )
++<script type="text/javascript" src="/library/js/jquery.js"></script>
++#end
++
+ <div class="portletBody" xmlns:wairole="http://www.w3.org/2005/01/wai-rdf/GUIRoleTaxonomy#"  xmlns:aaa="http://www.w3.org/2005/07/aaa">
+ 	<ul class="navIntraTool actionToolBar" role="menu">
+ 		#set($prevAction=false)
+@@ -222,6 +228,15 @@
+ 					<span class="highlight"> $tlang.getString("gen.nograd")</span>	
+ 				#elseif ($!grade && $grade.length()>0)
+ 					$grade
++					
++					<!--DN 2012-09-26:view grade iRubric -->
++					#if($!isShowiRubricLink && $!gradebookItem)
++						
++						<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
++						#parse ("/vm/assignment/chef_assignments_irubric.vm")
++						
++			        #end
++			        
+ 				#else
+ 					$tlang.getString("ungra")
+ 				#end
 Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_irubric.vm
 ===================================================================
 --- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_irubric.vm	(revision 0)
-+++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_irubric.vm	(revision 0)
-@@ -0,0 +1,26 @@
++++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_irubric.vm	(working copy)
+@@ -0,0 +1,27 @@
 +<!--DN 2012-10-12:move js(optimize code) -->
 +<script type="text/javascript"  src="/sakai-assignment-tool/js/irubric.js"></script>
 +
@@ -661,6 +576,7 @@ Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_irubric.vm
 +<input type="hidden" id="gradebookUId" value="$gradebookUId" />
 +<input type="hidden" id="studentUId"  value="$studentUId" />
 +<input type="hidden" id="gradebookItem" value="$gradebookItem" />
++<input type="hidden" id="iRubricUrlPrefix" value="$iRubricUrlPrefix" />
 +
 +<span style="margin-left:10px;display:none;" id="irubric-area">
 +   	<a href="#" id="irubric-link"><img src="/sakai-gradebook-tool/images/rubric.gif" alt="iRubric Link" /></a>
@@ -671,5 +587,110 @@ Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_irubric.vm
 +   		<a href="#" style="display:none" id="irubric-grading-refresh">Grading... Click here to refresh grade</a>
 +   	#end
 +</span>
-
-	
+Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_preview_submission.vm
+===================================================================
+--- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_preview_submission.vm	(revision 309148)
++++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_preview_submission.vm	(working copy)
+@@ -1,6 +1,12 @@
+ <!-- $Id$ -->
+ <!-- start: chef_assignments_student_preview_submission.vm -->
+ #parse("/vm/assignment/assignment_macros.vm")
++
++<!--DN 2012-09-22:if have define gradebookitem(this mean is have include gradebook item from gradebook) then add js rubric -->
++#if($!isShowiRubricLink && $!gradebookItem)
++<script type="text/javascript" src="/library/js/jquery.js"></script>
++#end
++
+ <div class="portletBody">
+ 
+ 	<h3>
+@@ -70,6 +76,15 @@
+ 					#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
+ 						($tlang.getString("stupresub.max") $assignment.getContent().getMaxGradePointDisplay())
+ 					#end
++					
++					<!--DN 2012-09-26:view grade iRubric -->
++					#if($!isShowiRubricLink && $!gradebookItem)
++						
++						<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
++						#parse ("/vm/assignment/chef_assignments_irubric.vm")
++						
++			        #end
++
+ 				</td>
+ 			</tr>
+ 		#end
+Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_grade.vm
+===================================================================
+--- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_grade.vm	(revision 309148)
++++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_grade.vm	(working copy)
+@@ -94,6 +94,15 @@
+ 									#end
+ 									#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
+ 										($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())
++										
++										<!--DN 2012-09-26:view grade iRubric -->
++										#if($!isShowiRubricLink && $!gradebookItem)
++											
++											<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
++											#parse ("/vm/assignment/chef_assignments_irubric.vm")
++											
++								        #end
++								        
+ 									#end
+ 								</strong>
+ 							</td>
+@@ -107,6 +116,15 @@
+ 								$gradeScale
+ 								#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
+ 									($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())
++									
++									<!--DN 2012-09-26:view grade iRubric -->
++									#if($!isShowiRubricLink && $!gradebookItem)
++										
++										<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
++										#parse ("/vm/assignment/chef_assignments_irubric.vm")
++										
++							        #end
++							        
+ 								#end
+ 							</td>
+ 						</tr>
+Index: assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_submission.vm
+===================================================================
+--- assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_submission.vm	(revision 309148)
++++ assignment-tool/tool/src/webapp/vm/assignment/chef_assignments_student_view_submission.vm	(working copy)
+@@ -253,6 +253,16 @@
+ 									#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
+ 										($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())
+ 									#end
++									
++									<!--DN 2012-09-21: show rubric link, use for grade rubric -->
++									<!--if have define gradebookitem(this mean have included gradebook item from gradebook) -->
++									#if($!isShowiRubricLink && $!gradebookItem)
++			
++										<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
++										#parse ("/vm/assignment/chef_assignments_irubric.vm")								
++	
++								        #end
++
+ 								</strong>
+ 							</td>
+ 						</tr>
+@@ -266,6 +276,16 @@
+ 								#if ($gradeTypeTable.get($assignment.getContent().getTypeOfGrade()) == $!tlang.getString("points"))
+ 									($tlang.getString("grade.max") $assignment.getContent().getMaxGradePointDisplay())
+ 								#end
++							
++								<!--DN 2012-09-21: show rubric link, use for grade rubric -->
++								<!--if have define gradebookitem(this mean have included gradebook item from gradebook) -->
++								#if($!isShowiRubricLink && $!gradebookItem)
++		
++									<!--DN 2012-09-24: include file chef_assignments_irubric.vm -->
++									#parse ("/vm/assignment/chef_assignments_irubric.vm")								
++
++							        #end
++
+ 							</td>
+ 						</tr>
+ 					#end
