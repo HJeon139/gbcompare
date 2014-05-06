@@ -1,0 +1,1296 @@
+Index: api/pom.xml
+===================================================================
+--- api/pom.xml	(revision 85262)
++++ api/pom.xml	(working copy)
+@@ -32,6 +32,11 @@
+ 		    <version>2.4.0</version>
+ 		    <scope>provided</scope>
+ 		</dependency>
++		<dependency>
++			<groupId>org.sakaiproject</groupId>
++			<artifactId>sakai-gradebook-irubric-api</artifactId>
++			<version>2.9.3</version>
++		</dependency>
+ 	</dependencies>
+ 	<build>
+ 	  <plugins>
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/resource/GradebookResources.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/resource/GradebookResources.java	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/resource/GradebookResources.java	(working copy)
+@@ -82,4 +82,11 @@
+ 	
+ 	@Source("table_edit.png")
+ 	ImageResource table_edit();
++	
++	//DN 2012-06-05:create image resoure icon irubric and attach
++	@Source("rubric.gif")
++	ImageResource rubric();
++	
++	@Source("refresh.gif")
++	ImageResource refresh_rubric();
+ }
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/resource/GradebookCssResource.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/resource/GradebookCssResource.java	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/resource/GradebookCssResource.java	(working copy)
+@@ -116,6 +116,9 @@
+ 	
+ 	String gbFinalGradeSubmissionStatus();
+ 	
++	//DN 2012-07-18: padding icon
++	String irubricItemIcon();
++
+ 	String gbFinalGradeSubmissionStatusDialog();
+ 	
+ 	String helpIcon();
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/resource/resources.css
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/resource/resources.css	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/resource/resources.css	(working copy)
+@@ -307,6 +307,10 @@
+ 	height: 32;
+ }
+ 
++.irubricItemIcon {
++	padding-right: 5px;
++}
++
+ /* GRBK-514 */
+ .gbLeftAlignFlushNoWrapInput input {
+ 	left:0px !important;
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/GradebookApplication.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/GradebookApplication.java	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/GradebookApplication.java	(working copy)
+@@ -149,6 +149,9 @@
+ 		
+ 		Registry.register(AppConstants.WIDGET_INJECTOR, injector);
+ 		
++		//DN 2013-04-22: set value of show iRubric link
++		Registry.register(AppConstants.IS_SHOW_IRUBRIC_LINK, applicationSetup.isShowiRubricLink());
++
+ 		dispatcher.dispatch(GradebookEvents.Load.getEventType(), authModel);
+ 		GXT.hideLoadingPanel(AppConstants.LOADINGPANELID);
+ 	}
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/model/ItemModel.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/model/ItemModel.java	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/model/ItemModel.java	(working copy)
+@@ -944,4 +944,36 @@
+ 		}
+ 		return rules;
+ 	}
++	
++	public Long getIrubricId() {
++		return get(ItemKey.L_IRUB_ID.name());
++	}
++
++	/*
++	 * (non-Javadoc)
++	 * 
++	 * @see
++	 * org.sakaiproject.gradebook.gwt.client.model.Item#setIrubricId(java.lang
++	 * .Long)
++	 */
++	public void setIrubricId(Long iRubricId) {
++		set(ItemKey.L_IRUB_ID.name(), iRubricId);
++	}
++	
++	//DN 2012-06-02: add properties siteId, use for pass IRubricLink 
++	public String getSiteId() {
++		return get(ItemKey.S_SITE_ID.name());
++	}
++	
++	public void setSiteId(String siteId) {
++		set(ItemKey.S_SITE_ID.name(), siteId);
++	}
++	
++	public String getIrubricTitle() {
++		return get(ItemKey.S_IRUB_TIL.name());
++	}
++	
++	public void setIrubricTitle(String iRubricTitle) {
++		set(ItemKey.S_IRUB_TIL.name(), iRubricTitle);
++	}
+ }
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/model/ApplicationModel.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/model/ApplicationModel.java	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/model/ApplicationModel.java	(working copy)
+@@ -207,4 +207,21 @@
+ 
+ 		set(ApplicationKey.B_ENABLE_FINAL_GRADE_SUBMISSION.name(), Boolean.valueOf(isEnabled));
+ 	}
++
++	//DN 2013-04-18:get value of show irubric link
++	public boolean isShowiRubricLink() {
++		boolean enabled = false;
++		Boolean enabledObj = get(ApplicationKey.B_ENABLE_SHOW_IRUBRIC.name());
++		if(enabledObj != null) {
++			enabled = enabledObj.booleanValue();
++		}
++		return enabled;
++	}
++
++	/** set value show irubric
++	 * @param isShowiRubricLink
++	 */
++	public void setShowiRubricLink(boolean isShowiRubricLink) {
++		set(ApplicationKey.B_ENABLE_SHOW_IRUBRIC.name(), Boolean.valueOf(isShowiRubricLink));
++	}
+ }
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/ItemFormPanel.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/ItemFormPanel.java	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/ItemFormPanel.java	(working copy)
+@@ -100,6 +100,21 @@
+ import com.google.gwt.user.client.ui.HorizontalPanel;
+ import com.google.gwt.user.client.ui.Image;
+ 
++//DN 2012-07-17: add lib show image
++import org.sakaiproject.gradebook.gwt.client.resource.GradebookResources;
++import org.sakaiproject.gradebook.gwt.client.util.OpenWindow;
++import com.google.gwt.event.dom.client.ClickEvent;
++import com.google.gwt.event.dom.client.ClickHandler;
++import com.google.gwt.user.client.ui.Image;
++import com.google.gwt.user.client.Timer; 
++import com.google.gwt.user.client.ui.Hyperlink;
++import com.google.gwt.user.client.ui.ClickListener;
++import com.google.gwt.user.client.ui.Widget;
++//import com.extjs.gxt.ui.client.widget.HorizontalPanel;
++import com.extjs.gxt.ui.client.widget.Info; 
++import org.sakaiproject.gradebook.gwt.client.model.ApplicationSetup;
++import com.google.gwt.user.client.Cookies;
++
+ public class ItemFormPanel extends GradebookPanel {
+ 
+ 	private enum Mode { DELETE, EDIT, NEW };
+@@ -171,9 +186,23 @@
+ 	private boolean alertDone;
+ 
+ 	private boolean hasUnprocessedSaveState;
+-		
++	
++	//DN 2012-07-17: create var image
++	private Image iRubricIcon;//, refreshiRubricIcon;
++	private GradebookResources resources;
++	private FieldSet displayiRubricFieldSet;
++	private LabelField lbliRubricTitle;
++	private Hyperlink hlinkiRubric;
++	private ClickHandler iRubricIconClickListener;
++	private ClickListener hlinkiRubricClickListener;
++	private boolean isShowiRubricLink = false;
++
+ 	public ItemFormPanel() {
+ 		super();
++
++		//DN 2013-04-22: get value of show iRubric link
++		isShowiRubricLink = (Boolean)Registry.get(AppConstants.IS_SHOW_IRUBRIC_LINK);
++
+ 		this.hasTreeItemDragAndDropMarker = false;
+ 		this.isListeningEnabled = true;
+ 		setHeaderVisible(true);
+@@ -507,6 +536,47 @@
+ 		enforcePointWeightingField.setToolTip(newToolTipConfig(i18n.enforcePointWeightingToolTip()));
+ 		formPanel.add(enforcePointWeightingField);
+ 
++		//if allow show rubric
++		if(isShowiRubricLink) {
++			//DN 2012-07-17: function attach irubric 
++			final LayoutContainer mainIrubric = new LayoutContainer();
++			mainIrubric.setLayout(new ColumnLayout());
++			//DN 2012-07-17: create fieldset, use for hidden irubric when click edit Catategory/Gradebook/add new item in function initState
++			displayiRubricFieldSet = new FieldSet();  
++			displayiRubricFieldSet.setHeading(i18n.iRubric());
++			displayiRubricFieldSet.setCheckboxToggle(false); 
++			displayiRubricFieldSet.setLayout(new FlowLayout());
++			displayiRubricFieldSet.setAutoHeight(true);
++			displayiRubricFieldSet.setScrollMode(Scroll.AUTO);
++			
++			//DN 2012-07-17:get resource,use show image
++			this.resources = Registry.get(AppConstants.RESOURCES);
++	 
++			// Create the image irubric icon
++			iRubricIcon = new Image(resources.rubric());
++			iRubricIcon.setTitle("Attach Irubric");
++			iRubricIcon.setStyleName(resources.css().irubricItemIcon());
++			mainIrubric.add(iRubricIcon);
++			
++			//hyperlink irubric 
++			hlinkiRubric = new Hyperlink("Select iRubric","Select iRubric");
++			hlinkiRubric.setStyleName(resources.css().irubricItemIcon());
++			mainIrubric.add(hlinkiRubric);
++			
++			//rubric title
++			lbliRubricTitle = new LabelField();
++			lbliRubricTitle.setStyleName(resources.css().irubricItemIcon());
++			mainIrubric.add(lbliRubricTitle);
++			
++			//add layout irubric in to fieldset
++			displayiRubricFieldSet.add(mainIrubric);
++			
++			//set visible rubric
++			setVisibleiRubric(false);
++			
++			formPanel.add(displayiRubricFieldSet);	
++		}
++			
+ 		topRowData = new RowData(1, 70, new Margins(10));
+ 		bottomRowData = new RowData(1, 1, new Margins(0, 0, 5, 0));
+ 		add(directionsField, topRowData);
+@@ -830,6 +900,10 @@
+ 		clearChanges();
+ 
+ 		initState(ItemType.CATEGORY, itemModel, false, true);
++		
++		//if allow show iRubric then hidden rubric if add new item
++		if(isShowiRubricLink)
++			setVisibleiRubric(false);
+ 
+ 		// GRBK-1083 - New categories are always empty... 
+ 		// So we disable the checkbox... 
+@@ -1121,6 +1195,26 @@
+ 		displayToStudentFieldSet.setEnabled(isAllowedToEdit && !isDelete);
+ 		displayToStudentFieldSet.setVisible(isEditable && !isNotGradebook);
+ 		
++		//if allow show iRubric
++		if(isShowiRubricLink) {
++			//DN 2012-07-17:set show/hidden image irubric
++			if(itemModel != null && itemModel.getItemId() > 0 && itemModel.getItemType() == ItemType.ITEM) {
++				//set rubric title
++				setiRubricTitle(itemModel);
++				
++				//show irubric
++				setVisibleiRubric(true);
++
++			}else {
++				
++				//set rubric title
++				setiRubricTitle(null);
++				//hidden irubric
++				setVisibleiRubric(false);
++				
++			}
++		}
++
+ 		// GRBK-1054 - these sets should mirror the logic for the grade type picker and the category type picker respectively. 
+ 		instructionsForCategoryTypePickerSet.setEnabled(isAllowedToEdit && !isDelete);
+ 		instructionsForCategoryTypePickerSet.setVisible(isEditable && !isNotGradebook);
+@@ -1280,6 +1374,13 @@
+ 		showItemStatsField.addListener(Events.Change, checkboxChangeListener);
+ 		showStatisticsChartField.addListener(Events.Change, checkboxChangeListener);
+ 		isListeningEnabled = true;
++
++		//if allow show iRubric
++		if(isShowiRubricLink) {
++			//DN 2012-07-24:add event
++			iRubricIcon.addClickHandler(iRubricIconClickListener);
++			hlinkiRubric.addClickListener(hlinkiRubricClickListener);
++		}
+ 	}
+ 
+ 	private void removeListeners() {
+@@ -1316,6 +1417,11 @@
+ 		showItemStatsField.removeListener(Events.Change, checkboxChangeListener);
+ 		showStatisticsChartField.removeListener(Events.Change, checkboxChangeListener);
+ 		isListeningEnabled = false;
++
++		//DN 2013-04-18: if can show iRubric link
++		if(isShowiRubricLink) 
++			//DN 2012-07-24:remove event
++			hlinkiRubric.removeClickListener(hlinkiRubricClickListener);
+ 	}
+ 
+ 	private void initListeners() {
+@@ -1678,7 +1784,20 @@
+ 									}
+ 								}
+ 
+-								sendItemUpdateEvent(record, selectedItemModel, close);								
++								sendItemUpdateEvent(record, selectedItemModel, close);	
++
++								//DN 2012-07-23: re-show rubric title if has changed.
++								//use for edit item
++								if(isShowiRubricLink && selectedItemModel.getItemType() == ItemType.ITEM) {
++									
++									//if save/close then clear selectedItemModel 
++									if(close) 
++										//clear selected(purpose: it will refresh selectedItemModel)
++										clearSelected();
++									else //else save then need refresh rubric title 
++										refreshRubricTitle();
++									
++								}							
+ 							}
+ 							else {
+ 								
+@@ -1696,6 +1815,26 @@
+ 				}
+ 			}
+ 		};
++
++		//DN 2013-04-18: if can show iRubric link
++		if(isShowiRubricLink) {
++			//DN 2012-07-24: create event
++			iRubricIconClickListener = new ClickHandler() {
++
++				public void onClick(ClickEvent event) {
++					//open new windown iRubric
++					openWindowiRubric(); 
++					
++				}
++			};
++			
++			hlinkiRubricClickListener = new ClickListener() {
++				public void onClick(Widget sender) {
++					//open new windown iRubric
++					openWindowiRubric(); 
++				}
++			}; 
++		}
+ 	}
+ 	// GRBK-811  Removed validating the equally weighted option client side.  For some reason it was causing problems with deletes.  
+ 
+@@ -2018,6 +2157,110 @@
+ 		}
+ 	}
+ 	
++	//DN 2012-07-19:set value rubric title
++	private void setiRubricTitle(ItemModel itemModel) {
++		//if attached then show rubric title
++		if(itemModel != null && itemModel.getIrubricId() > 0) {
++			
++			lbliRubricTitle.setText("(current selection: " + itemModel.getIrubricTitle() + ")");
++		
++		} else {//show message: empty
++			
++			lbliRubricTitle.setText("");
++		}
++		
++	}
++	
++	//DN 2012-07-19:set visible irubric
++	private void setVisibleiRubric(boolean isVisible){
++		//rubric title
++		lbliRubricTitle.setVisible(isVisible);
++		//rubric icon
++		iRubricIcon.setVisible(isVisible);
++		//field set irubric
++		displayiRubricFieldSet.setVisible(isVisible);
++		//hyperlink iRubric
++		hlinkiRubric.setVisible(isVisible);
++	}
++	
++	//DN 2012-07-23: re-show rubric title when user have been changed rubric
++	private void refreshRubricTitle() {
++	
++		final MessageBox box = MessageBox.wait("Progress",  
++				i18n.iRubricChangeTitleMessage(), "Changing...");  
++        //function wait, refresh data from function sendItemUpdateEvent() after that refresh rubric title
++		Timer t = new Timer() {  
++        	@Override  
++        	public void run() {  
++        		//get itemModel, use for check if has changed rubric then re-show rubric title
++        	  	String itemModelId = selectedItemModel.getItemId().toString();
++        	  	ItemModel itModel = new ItemModel();
++        	  	
++        	  	if (treeStore != null) {
++					
++					String key = new StringBuilder()
++						.append(ItemType.ITEM.getName())
++						.append(":")
++						.append(itemModelId).toString();
++					
++					itModel = treeStore.findModel(key);
++					
++					if(itModel == null) {
++						List<ItemModel> itemModels = treeStore.findModels(ItemKey.S_ID.name(), itemModelId);
++						if (itemModels != null) {
++							for (ItemModel itemModel : itemModels) {
++								ItemType itemType = itemModel.getItemType();
++								if (itemType == ItemType.ITEM) {
++									itModel = itemModel;
++									break;
++								}
++							}
++						}
++					}
++				}
++				
++				//check value old rubric title with new rubric title  
++				if(selectedItemModel.getIrubricTitle() != itModel.getIrubricTitle()) {
++					//reset selectedItemModel(it will refresh rubric title)
++					selectedItemModel = itModel;
++					//set rubric title
++					setiRubricTitle(selectedItemModel);
++					Info.display("Message", i18n.iRubricSavedMessage(), "");  
++				}
++				
++				box.close();  
++        	}  
++        };  
++        t.schedule(3000);
++		
++	}
++	//DN 2012-07-24: open window goto site iRubric
++	private void openWindowiRubric() {
++		//show button save and save/close when user click iRubric
++		okButton.setEnabled(true);
++		okCloseButton.setEnabled(true);
++		
++		if(selectedItemModel != null) {
++
++			// DN 2013-12-02: Get the gradebookPlacementId from cookie
++			String gradebookPlacementId = Cookies.getCookie("gradebookPlacementId");
++
++			// DN 2013-12-02: Updated the url irubric view: Add the gradebook placement id
++			// instead the "/sakaigradebooktool"
++			//string url IrubricLink
++			final String urlIrubric = "../" + gradebookPlacementId + "/iRubricLink.jsp?p=a&gradebookItemId="+ selectedItemModel.getItemId() +
++									"&siteId=" + selectedItemModel.getSiteId() + "&gradebookUid=" + selectedItemModel.getSiteId();
++			
++			//open windown irubric
++			new OpenWindow(urlIrubric);
++			
++		} else {
++			MessageBox.alert("Alert","Value selected item is null.",null);
++			
++		}
++		
++	}
++	
+ 	//GRBK-1128
+     private native String getTemplate(String toolTipText) /*-{ 
+     var html = [ 
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/StudentPanel.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/StudentPanel.java	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/StudentPanel.java	(working copy)
+@@ -107,12 +107,22 @@
+ import com.google.gwt.visualization.client.DataTable;
+ import com.google.gwt.visualization.client.LegendPosition;
+ 
++//DN 2012-06-04:add lib
++import com.extjs.gxt.ui.client.event.Events;
++import com.extjs.gxt.ui.client.event.GridEvent;
++import com.extjs.gxt.ui.client.event.Listener;
++//DN 2012-06-05:add function to open window
++import org.sakaiproject.gradebook.gwt.client.util.OpenWindow;
++import com.google.gwt.user.client.ui.AbstractImagePrototype;
++
+ public class StudentPanel extends GradebookPanel {
+ 
+ 	private enum Key { 
+ 		S_CTGRY_NM, S_ITM_ID, S_ITM_NM, S_ITM_WGHT, 
+ 		S_GRD, S_MEAN, S_STDV, S_MEDI, S_MODE, S_RANK, 
+-		S_HAS_COMMENT, S_COMMENT, S_ORDER, S_ID, S_OUTOF, T_DATEDUE, B_DROPPED
++		S_HAS_COMMENT, S_COMMENT, S_ORDER, S_ID, S_OUTOF, T_DATEDUE, B_DROPPED,
++		//DN 2012-06-05:add enum use for Irubric
++		S_IRUBRIC, S_SITE_ID
+ 	};
+ 
+ 	private static final String COURSE_GRADE_ID = "-1";
+@@ -147,6 +157,10 @@
+ 	private ModelData learnerGradeRecordCollection;
+ 	private ColumnConfig categoryColumn, weightColumn, outOfColumn, dateDueColumn, meanColumn, medianColumn, modeColumn, stdvColumn, hasCommentColumn;
+ 	private Image hasCommentIcon;
++	
++	//DN 2012-06-04:add column view grade Irubric
++	private ColumnConfig irubricColumn;
++	private boolean isShowiRubricLink = false;
+ 
+ 	private boolean isStudentView;
+ 	private boolean displayRank; 
+@@ -366,6 +380,18 @@
+ 		modeColumn.setHidden(true);
+ 		columns.add(modeColumn);
+ 		
++		//DN 2013-04-18: get value of show rubric link
++		isShowiRubricLink = (Boolean)Registry.get(AppConstants.IS_SHOW_IRUBRIC_LINK);
++		
++		//if allow show irubric link
++		if(isShowiRubricLink){
++			//DN 2012-06-04:add column view grade Irubric
++			irubricColumn = new ColumnConfig(Key.S_IRUBRIC.name(),i18n.iRubric(), 70);
++			irubricColumn.setGroupable(false);
++			irubricColumn.setMenuDisabled(true);
++			columns.add(irubricColumn);
++		}
++
+ 		hasCommentColumn = new ColumnConfig(Key.S_HAS_COMMENT.name(), i18n.hasCommentName(), 80);
+ 		hasCommentColumn.setGroupable(false);
+ 		hasCommentColumn.setMenuDisabled(true);
+@@ -449,6 +475,38 @@
+ 		grid.setWidth(810);
+ 		grid.setHeight(360);
+ 
++		//if allow show irubric link
++		if(isShowiRubricLink){
++			//DN 2012-06-05:add event view Irubric
++			grid.addListener(Events.CellClick, new Listener<GridEvent<BaseModel>>() {
++				
++				public void handleEvent(GridEvent<BaseModel> ge) {
++					
++					BaseModel itemModel = ge.getModel();
++					
++					String siteId = itemModel.get(Key.S_SITE_ID.name());
++					String gradebookItemId = itemModel.get(Key.S_ITM_ID.name());
++					String uid = learnerGradeRecordCollection.get(LearnerKey.S_UID.name());
++					
++					//all param use pass IrubricLink not equal empty
++					if(gradebookItemId != "" && uid != "" && siteId != ""){
++						
++						//string url irubricLink
++						String urlView = "/sakai-gradebook-tool/iRubricLink.jsp?p=v&gradebookItemId=" + gradebookItemId + 
++								"&rosterStudentId="+ uid + "&siteId=" + siteId + "&gradebookUid=" + siteId;
++											
++						//click image view irubric
++						if (ge.getTarget(".viewirubric", 1) != null) {
++							
++							new OpenWindow(urlView);
++							 
++						}
++					}
++					
++				}
++			});
++		}
++
+ 		gradeInformationContentPanel = new ContentPanel();
+ 		// NOTE: The header is set in the setGradeInfoTable() method
+ 		gradeInformationContentPanel.setBorders(true);
+@@ -781,6 +839,19 @@
+ 			}
+ 		}
+ 
++		//DN 2012-06-05:if a rubric is attached, add html image
++		if(isShowiRubricLink && item.getIrubricId()>0){
++			
++			//path image rubric
++			String strPathImageRubric = AbstractImagePrototype.create(resources.rubric()).getHTML();
++			
++			//add html image to enum
++			model.set(Key.S_IRUBRIC.name(),"<image class=\'viewirubric\'"+ strPathImageRubric + "</image>");
++			
++			//DN 2012-06-05: set siteId to pass iRubricLink
++			model.set(Key.S_SITE_ID.name(), item.getSiteId());
++		}
++
+ 		if (!isIncluded || isExcused) 
+ 			model.set(Key.B_DROPPED.name(), Boolean.TRUE);
+ 
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/ItemTreePanel.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/ItemTreePanel.java	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/view/panel/ItemTreePanel.java	(working copy)
+@@ -98,6 +98,13 @@
+ import com.google.gwt.user.client.Element;
+ import com.google.gwt.user.client.Event;
+ import com.google.gwt.user.client.ui.AbstractImagePrototype;
++//DN 2012-06-05:add function open new windown
++import org.sakaiproject.gradebook.gwt.client.util.OpenWindow;
++import com.google.gwt.http.client.*;
++import com.google.gwt.json.client.JSONObject;
++import com.google.gwt.json.client.JSONParser;
++import com.google.gwt.json.client.JSONValue;
++import com.google.gwt.user.client.Cookies;
+ 
+ public class ItemTreePanel extends GradebookPanel {
+ 
+@@ -123,7 +130,6 @@
+ 	private Listener<GridEvent<ItemModel>> gridEventListener;
+ 	private SelectionListener<MenuEvent> menuSelectionListener;
+ 	private SelectionChangedListener<ItemModel> selectionChangedListener;
+-
+ 	private ColumnConfig percentCourseGradeColumn, percentCategoryColumn, pointsColumn;
+ 	private ColumnModel cm;
+ 	private ItemTreeSelectionModel sm;
+@@ -138,13 +144,24 @@
+ 	private boolean isLearnerAttributeTreeLoaded = false;
+ 
+ 	private MessageBox verifyingCatsBox = null;
+-
++	
+ 	private ToolBar topStatus;
+ 
+ 	private Status status;
++	
++	//DN 2012-06-04:add var use for Irubric
++	private Listener<GridEvent<ItemModel>> gridIrubricEventListener = null;
++	private ColumnConfig irubricColumn;
++	private MessageBox waitGradeIrubricBox = null;
++	private boolean isHaveStudent;
++	private boolean isShowiRubricLink = false;
+ 
+ 	public ItemTreePanel(TreeStore<ItemModel> treeStore, boolean isEditable, boolean isImport) {
+ 		super();
++		
++		//DN 2013-04-22: get value of show iRubric link
++		isShowiRubricLink = (Boolean)Registry.get(AppConstants.IS_SHOW_IRUBRIC_LINK);
++
+ 		this.treeStore = treeStore;
+ 		this.enableLayout = false;
+ 		this.isEditable = isEditable;
+@@ -289,6 +306,45 @@
+ 		pointsColumn.setSortable(false);
+ 		columns.add(pointsColumn);
+ 		
++		//DM 2013-04-22: if can show irubric link
++		if(isShowiRubricLink){
++			//DN 2012-06-04: add column Irubric
++			GridCellRenderer<ItemModel> iRubricRenderer = new GridCellRenderer<ItemModel>() {
++				
++				public Object render(ItemModel itemModel, String property,
++						ColumnData config, int rowIndex, int colIndex,
++						ListStore<ItemModel> store, Grid<ItemModel> grid) { 
++					//if itemModel not null and gradebookId greater and have attach IRUbric then show link gradeAll than 0 and type is item 
++					//then add image in cloumn Irubric 
++					if(itemModel != null && itemModel.getItemId()>0 && itemModel.getItemType() == ItemType.ITEM && itemModel.getIrubricId() > 0) {
++						
++						StringBuffer sb = new StringBuffer();
++						String strPathImage = "";
++						
++						//path image rubric
++						strPathImage = AbstractImagePrototype.create(resources.rubric()).getHTML().replace("style='", "style='padding-right: 5px;");
++						//add image irubric
++						sb.append("<image class=\'gradeallirubric\'"+ strPathImage);
++						
++						//path image refresh
++						strPathImage = AbstractImagePrototype.create(resources.refresh_rubric()).getHTML();
++						//add image refresh
++						sb.append("<image class=\'refreshirubric\'"+ strPathImage);
++
++						return sb.toString();
++						
++					}
++					return "";	
++					
++				}
++
++			};
++		
++			irubricColumn = new ColumnConfig("iRubric", i18n.iRubric(), 80);
++			irubricColumn.setRenderer(iRubricRenderer);
++			irubricColumn.setAlignment(HorizontalAlignment.LEFT);
++			columns.add(irubricColumn);
++		}
+ 		// GRBK-932
+ 		ApplicationSetup applicationSetup = Registry.get(AppConstants.APP_MODEL);
+ 		if(null != applicationSetup) {
+@@ -515,7 +571,12 @@
+ 		itemGrid.setStripeRows(false);
+ 		itemGrid.setView(itemGridView);
+ 		itemGrid.setWidth(500);
+-
++		
++		//DN 2013-04-22: if can show irubric link
++		if(isShowiRubricLink)
++			//add event in column Irurbic 
++			itemGrid.addListener(Events.CellClick, gridIrubricEventListener);
++		
+ 		if (isEditable)
+ 			itemGrid.setContextMenu(newTreeContextMenu(i18n)); 
+ 
+@@ -662,6 +723,10 @@
+ 
+ 	public void onBeforeLoadItemTreeModel(Gradebook selectedGradebook, Item rootItem) {
+ 		checkCategoryTotals();
++		//if allow show irubric
++		if(isShowiRubricLink)
++			//check have student site
++			checkHaveStudent();
+ 	}
+ 
+ 	public void onHideColumn(FixedColumnModel fixedModel) {
+@@ -994,7 +1059,7 @@
+ 
+ 		};
+ 
+-
++		
+ 		menuSelectionListener = new SelectionListener<MenuEvent>() {
+ 
+ 			public void componentSelected(MenuEvent me) {
+@@ -1073,8 +1138,118 @@
+ 			}
+ 
+ 		};
++		//DN 2013-04-22: if can show irubric link
++		if(isShowiRubricLink){
++			//DN 2012-06-04:create event for column Irubric
++			gridIrubricEventListener = new Listener<GridEvent<ItemModel>>() {
++				
++				public void handleEvent(GridEvent<ItemModel> ge) {
++					final Item itemModel = (Item)ge.getModel();
++					
++					// DN 2013-12-02: Get the gradebookPlacementId from cookie
++					String gradebookPlacementId = Cookies.getCookie("gradebookPlacementId");
++
++					// DN 2013-12-02: Updated the url irubric view: Add the gradebook placement id
++					// instead the "/sakaigradebooktool"
++					//string url IrubricLink
++					String urlIrubric = "../" + gradebookPlacementId + "/iRubricLink.jsp?gradebookItemId="+ itemModel.getItemId() +
++					"&siteId=" + itemModel.getSiteId() + "&gradebookUid=" + itemModel.getSiteId();
++	 
++					//click image gradeAll irubric
++					if(ge.getTarget(".gradeallirubric",1) != null){ 
++						//if have student in site then grade all
++						if(isHaveStudent) {
++							urlIrubric = urlIrubric + "&p=ga&t=gb2";
++							
++							new OpenWindow(urlIrubric);
++							
++						} else {
++							MessageBox.alert("Alert", i18n.iRubricNoStudent(), null);
++						}
++						
++					//click image refresh iRubric
++					}else if(ge.getTarget(".refreshirubric",1) != null) {
++						//if have student in site then get grade all
++						if(isHaveStudent) {
++
++							//create progress
++							waitGradeIrubricBox = MessageBox.wait(i18n.importProgressTitle(), 
++									i18n.iRubricWaitResponse(),
++									i18n.applicationLoading());
++							
++							urlIrubric = urlIrubric + "&p=gag&t=gb2";
++							
++							RequestBuilder builder = new RequestBuilder(RequestBuilder.POST, URL.encode(urlIrubric));
++		
++							try {
++							  Request request = builder.sendRequest(null, new RequestCallback() {
++							    
++								public void onError(Request request, Throwable exception) {
++									// Couldn't connect to server (could be timeout, SOP violation, etc.)
++									//close progress
++									waitGradeIrubricBox.close();
++									MessageBox.alert("Alert", i18n.iRubricNoConnect(),null);
++							    }
++		
++							    public void onResponseReceived(Request request, Response response) {
++							    	//close progress
++							    	waitGradeIrubricBox.close();
++							    	
++							    	if (200 == response.getStatusCode()) {
++							    	  // Process the response in response.getText()
++							    	  char resultResponse = response.getText().charAt(0);
++							    	  switch(resultResponse) {
++							    		
++							    	  	case 'A':
++							    	  		MessageBox.alert("", i18n.iRubricGradeRefresh(), null);
++							    	  		Gradebook gb = Registry.get(AppConstants.CURRENT);
++									    	//Refresh grid view
++									    	Dispatcher.forwardEvent(GradebookEvents.RefreshCourseGrades.getEventType(), gb);
++							    	  		break;
++							    	  		
++							    	  	case 'N':
++							    	  		MessageBox.alert("", i18n.iRubricNoGrade(), null);
++							    	  		break;
++							    	  		
++							    	  	case 'E':
++							    	  		MessageBox.alert("", i18n.iRubricNoAttach(), null);
++							    	  		break;
++							    	  		
++							    	  	case 'I':
++							    	  		MessageBox.alert("", i18n.iRubricInvalidData(), null);
++							    	  		break;
++							    	  		
++							    	  	default:
++								    	  	MessageBox.alert("", i18n.iRubricNoReceivedData(), null);
++							    	  		break;
++							    	  		
++							    	  }
++		
++							      } else {
++							        // Handle the error.  Can get the status text from response.getStatusText()
++							    	  MessageBox.alert("Alert", "Error data.", null);
++							      }
++							    }       
++							  });
++							} catch (RequestException e) {
++								// Couldn't connect to server
++								//close progress
++								waitGradeIrubricBox.close();
++								
++								MessageBox.alert("Alert", e.getMessage(), null);
++							}
++						} else {
++							
++							MessageBox.alert("Alert", i18n.iRubricNoStudent(), null);
++						}
++						
++					}
++
++				}
++			};
++		}//end isShowiRubric
+ 	}
+-
++		
+ 	private void doSelectItem(GridEvent ge) {
+ 		Item itemModel = (Item)ge.getModel();
+ 		doEditItem(itemModel);
+@@ -1176,4 +1351,39 @@
+ 
+ 		sendShowColumnsEvent(new ShowColumnsEvent(fullStaticIdSet, staticIds));
+ 	}
++	
++	//DN 2012-08-16:function check have student or no have student in site
++	//(avoid grade all but don't have student it will have error.
++	//if have student in site then show function grade all and refresh rubric(get grade)
++	private void checkHaveStudent() {
++		
++		Gradebook gb = Registry.get(AppConstants.CURRENT);
++		
++		if (gb != null) {
++			RestBuilder builder = RestBuilder.getInstance(Method.GET, 
++					GWT.getModuleBaseURL(),
++					AppConstants.REST_FRAGMENT,	AppConstants.ROSTER_FRAGMENT,
++					gb.getGradebookUid(), String.valueOf(gb.getGradebookId()));
++
++			builder.sendRequest(200, 400, "", new RestCallback() {
++
++				public void onError(Request request, Throwable exception) {
++					
++				}
++
++				public void onSuccess(Request request, Response response) {
++					
++					JSONValue value = JSONParser.parse(response.getText());
++					JSONObject valueObj = value.isObject();
++					//MessageBox.alert("Alert","string 1:" + valueObj.get("total").isString().stringValue(), null);
++					if(valueObj.get("total").isString().stringValue() != "0"){
++						//MessageBox.alert("Alert","true", null);
++						isHaveStudent = true;
++					}
++				}
++
++			});
++		}
++		
++	}
+ }
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/controller/InstructorController.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/controller/InstructorController.java	(revision 85262)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/gxt/controller/InstructorController.java	(working copy)
+@@ -320,6 +320,9 @@
+ 		Registry.register(AppConstants.ENABLED_SEARCH_ROSTER_BY_FIELD, Boolean.valueOf(model.isSearchRosterByFieldEnabled()));
+ 		Registry.register(AppConstants.ENABLED_GRADE_TYPES, model.getEnabledGradeTypes());
+ 		Registry.register(AppConstants.SHOW_WEIGHTED_ENABLED, Boolean.toString(model.isShowWeightedEnabled()));
++		
++		//DN 2013-04-18: get value of show rubric link
++		//Registry.register(AppConstants.IS_SHOW_IRUBRIC_LINK, model.isShowiRubricLink());
+ 
+ 		// FIXME: Currently we only evaluate the first gradebook model to determine if we have
+ 		// FIXME: an instructor or a student. This needs to be refined.
+Index: client/src/java/org/sakaiproject/gradebook/gwt/client/util/OpenWindow.java
+===================================================================
+--- client/src/java/org/sakaiproject/gradebook/gwt/client/util/OpenWindow.java	(revision 0)
++++ client/src/java/org/sakaiproject/gradebook/gwt/client/util/OpenWindow.java	(revision 0)
+@@ -0,0 +1,22 @@
++package org.sakaiproject.gradebook.gwt.client.util;
++
++import com.google.gwt.user.client.Window;
++
++public class OpenWindow  {  
++	   
++	public OpenWindow(String url){
++		
++		Window.open(url,"irubric","menubar=no," + 
++	           "location=false," + 
++	           "resizable=yes," + 
++	           "scrollbars=yes," + 
++	           "status=no," + 
++	           "width=800,"+ 
++	           "height=600,"+
++	           "top=20,"+
++	           "left=100,"+
++	           "dependent=true");
++		
++	}
++	
++}  
+\ No newline at end of file
+Index: war/WEB-INF/gbServices.xml
+===================================================================
+--- war/WEB-INF/gbServices.xml	(revision 85262)
++++ war/WEB-INF/gbServices.xml	(working copy)
+@@ -38,6 +38,7 @@
+ 		<property name="eventTrackingService" ref="org.sakaiproject.event.api.EventTrackingService" />
+ 		<property name="i18n" ref="gradebook2.I18N" />
+ 		<property name="scale" value="50"/>
++		<property name="rubricManager" ref="com.reazon.tool.irubric.IRubricManager"/>
+ 		<!-- cache -->
+ 		<property name="cache" ref="org.sakaiproject.gradebook.gwt.sakai.gradebookservice.cache" />
+ 	</bean>
+Index: pom.xml
+===================================================================
+--- pom.xml	(revision 85262)
++++ pom.xml	(working copy)
+@@ -5,7 +5,7 @@
+ 	<parent>
+ 		<groupId>org.sakaiproject</groupId>
+ 		<artifactId>master</artifactId>
+-		<version>2.9.1</version>
++		<version>2.9.3</version>
+ 		<relativePath>../master</relativePath>
+ 	</parent>
+ 	<name>Sakai Gradebook2 Project</name>
+Index: model/src/java/org/sakaiproject/gradebook/gwt/client/model/Item.java
+===================================================================
+--- model/src/java/org/sakaiproject/gradebook/gwt/client/model/Item.java	(revision 85262)
++++ model/src/java/org/sakaiproject/gradebook/gwt/client/model/Item.java	(working copy)
+@@ -197,4 +197,17 @@
+ 
+ 	public abstract boolean isNotCalculable();
+ 	
++	//DN 2012-05-30:add field table iRubric(GradeableObjectRubric)
++	public abstract void setIrubricId(Long iRubricId);
++		
++	public abstract Long getIrubricId();
++	
++	public abstract void setSiteId(String siteId);
++	
++	public abstract String getSiteId();
++	
++	//DN 2012-07-17:add field in table iRubric(GradeableObjectRubric)
++	public abstract void setIrubricTitle(String irubricTitle);
++	
++	public abstract String getIrubricTitle();
+ }
+Index: model/src/java/org/sakaiproject/gradebook/gwt/client/model/key/ItemKey.java
+===================================================================
+--- model/src/java/org/sakaiproject/gradebook/gwt/client/model/key/ItemKey.java	(revision 85262)
++++ model/src/java/org/sakaiproject/gradebook/gwt/client/model/key/ItemKey.java	(working copy)
+@@ -75,7 +75,11 @@
+ 	S_PARENT("parent"), 
+ 	B_ALW_SCL_X_CRDT("isAllowScaledExtraCredit"),
+ 	B_ISNT_CALCBLE("isNotCalculable"), 
+-	A_IGNOR("ignoredBusinessRules");
++	A_IGNOR("ignoredBusinessRules"),
++	//DN 2012-05-30: add key for table Irubric
++	L_IRUB_ID("iRubricId"),
++	S_SITE_ID("siteId"),
++	S_IRUB_TIL("iRubricTitle");
+ 	
+ 	private String property;
+ 
+Index: model/src/java/org/sakaiproject/gradebook/gwt/client/model/key/ApplicationKey.java
+===================================================================
+--- model/src/java/org/sakaiproject/gradebook/gwt/client/model/key/ApplicationKey.java	(revision 85262)
++++ model/src/java/org/sakaiproject/gradebook/gwt/client/model/key/ApplicationKey.java	(working copy)
+@@ -29,6 +29,7 @@
+ 	S_AUTH_DETAILS("authorizationDetails"),
+ 	B_CHECK_FINAL_GRADE_SUBMISSION_STATUS("checkFinalGradeSubmissionStatus"),
+ 	I_CACHED_DATA_AGE("cachedDataAge"),
++	B_ENABLE_SHOW_IRUBRIC("showiRubricLink"),
+ 	B_ENABLE_FINAL_GRADE_SUBMISSION("enableFinalGradeSubmission");
+ 
+ 	
+Index: model/src/java/org/sakaiproject/gradebook/gwt/client/model/ApplicationSetup.java
+===================================================================
+--- model/src/java/org/sakaiproject/gradebook/gwt/client/model/ApplicationSetup.java	(revision 85262)
++++ model/src/java/org/sakaiproject/gradebook/gwt/client/model/ApplicationSetup.java	(working copy)
+@@ -76,4 +76,8 @@
+ 	 */
+ 	public abstract void setFinalGradeSubmissionEnabled(boolean isEnabled);
+ 
++	//DN 2013-04-18
++	public abstract boolean isShowiRubricLink();
++
++	public abstract void setShowiRubricLink(boolean isShowiRubricLink);
+ }
+\ No newline at end of file
+Index: server/src/java/org/sakaiproject/gradebook/gwt/server/model/ApplicationSetupImpl.java
+===================================================================
+--- server/src/java/org/sakaiproject/gradebook/gwt/server/model/ApplicationSetupImpl.java	(revision 85262)
++++ server/src/java/org/sakaiproject/gradebook/gwt/server/model/ApplicationSetupImpl.java	(working copy)
+@@ -179,4 +179,19 @@
+ 		
+ 		set(ApplicationKey.B_ENABLE_FINAL_GRADE_SUBMISSION.name(), Boolean.valueOf(isEnabled));
+ 	}
++
++	//DN 2013-04-18: show irubric
++	public boolean isShowiRubricLink(){
++		Boolean status = get(ApplicationKey.B_ENABLE_SHOW_IRUBRIC.name());
++		
++		if(null != status) {
++			
++			return status.booleanValue();
++		}
++		
++		return false;
++	}
++	public void setShowiRubricLink(boolean isShowiRubricLink) {
++		set(ApplicationKey.B_ENABLE_SHOW_IRUBRIC.name(), Boolean.valueOf(isShowiRubricLink));
++	}
+ }
+Index: server/src/java/org/sakaiproject/gradebook/gwt/server/model/GradeItemImpl.java
+===================================================================
+--- server/src/java/org/sakaiproject/gradebook/gwt/server/model/GradeItemImpl.java	(revision 85262)
++++ server/src/java/org/sakaiproject/gradebook/gwt/server/model/GradeItemImpl.java	(working copy)
+@@ -474,5 +474,28 @@
+ 		set(ItemKey.B_ISNT_CALCBLE.name(), Boolean.valueOf(isNotCalculable));
+ 	}
+ 
++	//DN 2012-05-30: add field irubricId
++	public void setIrubricId(Long irubricId) {
++		put(ItemKey.L_IRUB_ID.name(), irubricId);
++	}
++	 	
++	public Long getIrubricId() {
++		return Util.toLong(get(ItemKey.L_IRUB_ID.name()));
++	}
+ 	
++	public void setSiteId(String siteId) {
++		put(ItemKey.S_SITE_ID.name(), siteId);
++	}
++	 	
++	public String getSiteId() {
++		return Util.toString(get(ItemKey.S_SITE_ID.name()));
++	}
++	
++	public String getIrubricTitle() {
++		return Util.toString(get(ItemKey.S_IRUB_TIL.name()));
++	}
++	
++	public void setIrubricTitle(String iRubricTitle) {
++		put(ItemKey.S_IRUB_TIL.name(), iRubricTitle);	
++	}
+ }
+Index: server/src/java/org/sakaiproject/gradebook/gwt/server/WebAppToolServlet.java
+===================================================================
+--- server/src/java/org/sakaiproject/gradebook/gwt/server/WebAppToolServlet.java	(revision 85262)
++++ server/src/java/org/sakaiproject/gradebook/gwt/server/WebAppToolServlet.java	(working copy)
+@@ -44,6 +44,13 @@
+ import org.springframework.beans.factory.annotation.Autowired;
+ import org.springframework.web.context.support.SpringBeanAutowiringSupport;
+ 
++import org.sakaiproject.tool.cover.ToolManager;
++import org.sakaiproject.site.api.Site;
++import org.sakaiproject.site.cover.SiteService;
++import org.sakaiproject.exception.IdUnusedException;
++import org.sakaiproject.site.api.ToolConfiguration;
++
++
+ // This code was contributed by CARET to Sakai, it' modified below
+ // for use in Gradebook2
+ public class WebAppToolServlet extends HttpServlet {
+@@ -54,6 +61,9 @@
+ 
+ 	private static String version = null;
+ 	
++	private final static String TOOL_ID_GRADEBOOK = "sakai.gradebook.tool";
++	private static String placement = null;
++	
+ 	// Set via IoC
+ 	@Autowired
+ 	private ResourceLoader rb = null;
+@@ -130,6 +140,9 @@
+ 			}
+ 		};
+ 
++		// DN 2013-12-02: Add the placement id to the cookie
++		addPlacementToCookie(response);
++
+ 		if (request.getPathInfo() == null
+ 				&& getInitParameter(FIRST_PAGE) != null
+ 				&& !getInitParameter(FIRST_PAGE).equals("/")) {
+@@ -249,4 +262,51 @@
+ 	public void setRb(ResourceLoader rb) {
+ 		this.rb = rb;
+ 	}
++
++
++	/*
++	 * If the placement id not exist then add it to the cookie
++	 */
++	private void addPlacementToCookie(HttpServletResponse response) {
++		if (placement == null) {
++			placement = getToolPlacement();
++
++			if (placement != null) {
++				Cookie cookie = new Cookie("gradebookPlacementId", placement);
++				cookie.setMaxAge(-1);
++				response.addCookie(cookie);
++			}
++		}
++	}
++
++
++	/*
++	 * Get the tool placement id
++	 */
++	private String getToolPlacement() {
++
++		if (placement != null)
++			return placement;
++
++		String contextId = ToolManager.getInstance().getCurrentPlacement().getContext();
++
++		try {
++			Site site = SiteService.getSite(contextId);
++
++			if (site != null) {
++				ToolConfiguration tool = site.getToolForCommonId(TOOL_ID_GRADEBOOK);
++
++				if (tool != null) {
++					placement = tool.getId();
++				}
++			}
++
++		} catch (IdUnusedException e) {
++			// TODO Auto-generated catch block
++		}
++
++		return placement;
++
++	}
++
+ }
+Index: server/src/java/org/sakaiproject/gradebook/gwt/sakai/Gradebook2ComponentServiceImpl.java
+===================================================================
+--- server/src/java/org/sakaiproject/gradebook/gwt/sakai/Gradebook2ComponentServiceImpl.java	(revision 85262)
++++ server/src/java/org/sakaiproject/gradebook/gwt/sakai/Gradebook2ComponentServiceImpl.java	(working copy)
+@@ -123,6 +123,10 @@
+ import net.sf.ehcache.Element;
+ import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
+ 
++//DN 2012-08-27:add lib shared of gradebook1
++import org.sakaiproject.tool.gradebook.iRubric.GradableObjectRubric;
++import com.reazon.tool.irubric.IRubricManager;
++
+ public class Gradebook2ComponentServiceImpl extends BigDecimalCalculationsWrapper implements Gradebook2ComponentService, ApplicationContextAware {
+ 
+ 	// Set via IoC
+@@ -282,6 +286,7 @@
+ 	private ToolManager toolManager;	
+ 	private UserDirectoryService userService;
+ 	
++	private IRubricManager rubricManager;
+ 	/*
+ 	 * GRBK-824 : Adding class member that is only set during init via sakai properties.
+ 	 * Thus, there are no thread safety concerns.
+@@ -818,6 +823,8 @@
+ 		setup.setCheckFinalGradeSubmissionStatus(checkFinalGradeSubmition);
+ 		setup.setCachedDataAge(statisticsDataCacheAge);
+ 		setup.setFinalGradeSubmissionEnabled(isFinalGradeSubmissionEnabled);
++		//DN 2013-04-18: set value show/hide iRubric
++		setup.setShowiRubricLink(rubricManager.isShowiRubricLink());
+ 		
+ 		return setup;
+ 	}
+@@ -927,6 +934,10 @@
+ 
+ 		return gbService;
+ 	}
++	
++	public IRubricManager getRubricManager() {
++		return rubricManager;
++	}
+ 
+ 	public org.sakaiproject.gradebook.gwt.client.model.Gradebook getGradebook(String uid) {
+ 		Gradebook gradebook = gbService.getGradebook(uid);
+@@ -2843,6 +2854,11 @@
+ 
+ 		this.gbService = gbService;
+ 	}
++	
++	public void setRubricManager(IRubricManager rubricManager) {
++ 
++		this.rubricManager = rubricManager;
++	}
+ 
+ 	public void setGradeCalculations(GradeCalculations gradeCalculations) {
+ 
+@@ -4909,7 +4925,25 @@
+ 		}
+ 
+ 		model.setItemType(ItemType.ITEM);
+-
++		
++		//DN 2012-08-15: get irubric switch
++		//if allow show rubric then set value rubricid and siteid
++		if(rubricManager.isShowiRubricLink()){
++			
++			if(assignment.getId() > 0 ){
++				// use gradebookManager of Gradebook1
++				GradableObjectRubric objRub = rubricManager.getGradableObjectRubric(assignment.getId());
++				if(objRub != null) {
++					model.setIrubricId(objRub.getId());
++					model.setIrubricTitle(objRub.getiRubricTitle());
++				}
++			}
++			
++			//set site id(use pass IrubricLink)
++			String siteId = getSiteId();
++			model.setSiteId(siteId);
++		}
++				
+ 		return model;
+ 	}
+ 
+Index: shared/src/java/org/sakaiproject/gradebook/gwt/client/I18nConstants.java
+===================================================================
+--- shared/src/java/org/sakaiproject/gradebook/gwt/client/I18nConstants.java	(revision 85262)
++++ shared/src/java/org/sakaiproject/gradebook/gwt/client/I18nConstants.java	(working copy)
+@@ -353,6 +353,20 @@
+ 	String itemFormPanelEditDropLowestInvalid();
+ 	String itemFormPanelEditDropLowestNonEquallyWeighted();
+ 
++	//DN 2012-06-05:add properties(header column)
++	String iRubric();
++	//DN 2012-06-08:add message for Irubric
++	String iRubricWaitResponse();
++	String iRubricNoConnect();
++	String iRubricGradeRefresh();
++	String iRubricNoGrade();
++	String iRubricNoAttach();
++	String iRubricInvalidData();
++	String iRubricNoReceivedData();
++	String iRubricSavedMessage();
++	String iRubricChangeTitleMessage();
++	String iRubricNoStudent();
++
+ 	String businessRuleNoBlankItemCategoryName();
+ 	String businessRulePointsCannotBeNegative();
+ 	String businessRuleWeightCannotBeNegative();
+Index: shared/src/java/org/sakaiproject/gradebook/gwt/client/AppConstants.java
+===================================================================
+--- shared/src/java/org/sakaiproject/gradebook/gwt/client/AppConstants.java	(revision 85262)
++++ shared/src/java/org/sakaiproject/gradebook/gwt/client/AppConstants.java	(working copy)
+@@ -323,4 +323,6 @@
+ 	public static final String IMPORT_PARAM_FILETYPE = "filetype";
+ 	public static final String IMPORT_PARAM_FILEFORMAT = "fileformat";
+ 	
++	//DN 2013-04-18: use to hold value of show irubric link
++	public static final String IS_SHOW_IRUBRIC_LINK = "showiRubricLink";
+ }
+Index: shared/src/java/org/sakaiproject/gradebook/gwt/client/I18nConstants.properties
+===================================================================
+--- shared/src/java/org/sakaiproject/gradebook/gwt/client/I18nConstants.properties	(revision 85262)
++++ shared/src/java/org/sakaiproject/gradebook/gwt/client/I18nConstants.properties	(working copy)
+@@ -559,6 +559,20 @@
+ # GRBK-1086
+ exportSheetTitle = Gradebook
+ 
++#iRubric
++#DN 2012-06-08:add message
++iRubric = iRubric
++iRubricWaitResponse = Waiting for response from iRubric.
++iRubricNoConnect = Could not connect to iRubric or connection has timed out.
++iRubricGradeRefresh = Grades have been refreshed from iRubric.
++iRubricNoGrade = No student have been graded in iRubric.
++iRubricNoAttach = A rubric is not attached. Please select an iRubric first.
++iRubricInvalidData = Invalid returned value from iRubric. Please notify the system administrator, should the problem persist.
++iRubricNoReceivedData = Could not receive data from iRubric.
++iRubricSavedMessage = An iRubric has been attached successfully.
++iRubricChangeTitleMessage = Changing your iRubric title, please wait...
++iRubricNoStudent = There are no students to grade.
++
+ # GRBK-1083
+ itemFormPanelReleasedItemForCategoryEmptyMessage = The category is empty, you cannot change the released item status at this time.
+ 
